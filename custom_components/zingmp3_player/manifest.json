@@ -1,0 +1,15 @@
+{
+  "domain": "zingmp3_player",
+  "name": "Zing MP3 Player",
+  "codeowners": [
+    "@smarthomeblack"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "persistent_notification"
+  ],
+  "documentation": "https://github.com/smarthomeblack/zing_mp3",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/smarthomeblack/zing_mp3/issues",
+  "version": "2026.2.8"
+}

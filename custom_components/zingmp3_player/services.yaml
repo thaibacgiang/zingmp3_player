@@ -1,0 +1,45 @@
+# Services cho Zing MP3 integration
+call_method:
+  fields:
+    entity_id:
+      example: "media_player.zingmp3_player"
+      required: true
+      selector:
+        entity:
+          domain: media_player
+    command:
+      example: "goto_track"
+      required: true
+      selector:
+        text:
+    parameters:
+      example: "1"
+      required: true
+      selector:
+        text:
+
+search:
+  fields:
+    entity_id:
+      example: "media_player.zingmp3_player"
+      required: true
+      selector:
+        entity:
+          domain: media_player
+    query:
+      example: "Sơn Tùng MTP"
+      required: true
+      selector:
+        text:
+    filter:
+      required: false
+      selector:
+        text:
+    limit:
+      required: false
+      example: "20"
+      default: 20
+      selector:
+        number:
+          min: 1
+          max: 1000
