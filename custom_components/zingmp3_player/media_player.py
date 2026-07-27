@@ -9,6 +9,7 @@ from datetime import timedelta
 from typing import Any, Dict, List, Optional
 
 import aiohttp
+import voluptuous as vol
 from homeassistant.components import media_source
 from homeassistant.components.media_player import (
     BrowseMedia,
@@ -98,27 +99,6 @@ async def async_setup_entry(
     # Register services
     platform = entity_platform.async_get_current_platform()
     
-    @callback
-    async def search_service(call):
-        """Handle search service."""
-        entity_id = call.data.get(ATTR_ENTITY_ID)
-        if entity_id and entity_id != entity.entity_id:
-            return
-        query = call.data.get("query")
-        filter_type = call.data.get("filter", "songs")
-        limit = call.data.get("limit", 20)
-        await entity.async_search(query, filter_type, limit)
-
-    @callback
-    async def call_method_service(call):
-        """Handle call_method service."""
-        entity_id = call.data.get(ATTR_ENTITY_ID)
-        if entity_id and entity_id != entity.entity_id:
-            return
-        command = call.data.get("command")
-        parameters = call.data.get("parameters", {})
-        await entity.async_call_method(command, parameters)
-
     platform.async_register_entity_service(
         SERVICE_SEARCH,
         {
@@ -137,7 +117,9 @@ async def async_setup_entry(
         },
         "async_call_method",
     )
-	class ZingMP3PlayerEntity(MediaPlayerEntity):
+
+
+class ZingMP3PlayerEntity(MediaPlayerEntity):
     """Representation of a Zing MP3 Player."""
 
     def __init__(
@@ -169,6 +151,7 @@ async def async_setup_entry(
         self._media_image_url = None
         self._media_duration = 0
         self._media_position = 0
+        self._search_results = []
         
         # Update list of available speakers
         self._update_source_list()
