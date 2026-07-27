@@ -1,87 +1,75 @@
-"""Platform cho sensor integration của Zing MP3."""
+"""Sensor for Zing MP3 Player integration."""
+
+from __future__ import annotations
+
+import json
 import logging
-from homeassistant.helpers.entity import Entity
-from . import DOMAIN
-from .const import *
+from typing import Any
+
+from homeassistant.components.sensor import SensorEntity
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.typing import ConfigType
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+from .const import ATTR_SEARCH_RESULTS, ATTR_TRACKS, DOMAIN
+from .media_player import ZingMP3PlayerEntity
 
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_setup_entry(hass, config, async_add_entities):
-	"""Set up sensor từ config entry."""
-	_LOGGER.debug("Init Zing MP3 sensor")
-	if config.data.get(CONF_INIT_EXTRA_SENSOR, DEFAULT_INIT_EXTRA_SENSOR):
-		async_add_entities([ZingMp3Sensor(hass, config)], update_before_add=True)
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up Zing MP3 Player sensor from a config entry."""
+    # Find the media player entity
+    for entity in hass.data[DOMAIN].values():
+        if isinstance(entity, ZingMP3PlayerEntity):
+            async_add_entities([ZingMP3SensorEntity(entity)])
+            break
 
 
-class ZingMp3Sensor(Entity):
-	"""Extra Sensor cho Zing MP3 integration."""
+class ZingMP3SensorEntity(SensorEntity):
+    """Sensor entity for Zing MP3 Player."""
 
-	def __init__(self, hass, config):
-		"""Initialize sensor."""
-		self.hass = hass
-		self._state = STATE_OFF
-		self._device_id = config.entry_id
-		self._device_name = config.data.get(CONF_NAME)
-		self._attr_unique_id = config.entry_id + "_extra"
-		self._attr_has_entity_name = True
-		self._attr_name = "Extra"
-		self._attr_icon = 'mdi:information-outline'
-		self.hass.data[DOMAIN][self._device_id]['extra_sensor'] = self
-		self._attr = {'current_song_id', 'current_song_title', 'current_song_artist', 'search', 'tracks', 'total_tracks'}
-		self._attributes = {}
-		for attr in self._attr:
-			self._attributes[attr] = ""
+    def __init__(self, player: ZingMP3PlayerEntity) -> None:
+        """Initialize the sensor."""
+        self._player = player
+        self._attr_name = f"{player.name} Extra"
+        self._attr_unique_id = f"{player.unique_id}_extra"
+        self._attr_native_unit_of_measurement = "tracks"
+        self._attr_icon = "mdi:music-box"
 
-		_LOGGER.debug("Init Zing MP3 sensor done")
+    @property
+    def native_value(self) -> int:
+        """Return the number of tracks."""
+        return len(self._player._playlist) if self._player._playlist else 0
 
-	@property
-	def device_info(self):
-		"""Return device info."""
-		return {
-			'identifiers': {(DOMAIN, self._device_id)},
-			'name': self._device_name,
-			'manufacturer': "smarthomeblack",
-			'model': "Zing MP3 Player"
-		}
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the state attributes."""
+        attrs = {}
+        
+        # Current track info
+        if self._player._current_track:
+            attrs["current_track"] = self._player._current_track
+            
+        # Playlist info
+        if self._player._playlist:
+            attrs[ATTR_TRACKS] = json.dumps(self._player._playlist)
+            attrs["total_tracks"] = len(self._player._playlist)
+            attrs["current_index"] = self._player._current_index
+            
+        # Search results (if any)
+        if hasattr(self._player, "_search_results"):
+            attrs[ATTR_SEARCH_RESULTS] = json.dumps(self._player._search_results)
+            
+        return attrs
 
-	@property
-	def name(self):
-		"""Return name."""
-		return self._attr_name
-
-	@property
-	def state(self):
-		"""Return state."""
-		return self._state
-
-	@property
-	def extra_state_attributes(self):
-		"""Return extra state attributes."""
-		return self._attributes
-
-	@property
-	def icon(self):
-		"""Return icon."""
-		return self._attr_icon
-
-	async def async_update(self):
-		"""Update sensor state từ media player."""
-		if DOMAIN in self.hass.data and self._device_id in self.hass.data[DOMAIN]:
-			media_player_entity = self.hass.data[DOMAIN][self._device_id].get("media_player")
-			if media_player_entity:
-				self._state = media_player_entity.state
-				self._attributes['current_song_id'] = getattr(media_player_entity, '_current_song_id', '')
-				self._attributes['current_song_title'] = getattr(media_player_entity, '_track_title', '')
-				self._attributes['current_song_artist'] = getattr(media_player_entity, '_track_artist', '')
-			
-			# Update all attributes from the data var (giống ytube_music_player)
-			for attr in self._attr:
-				if attr in self.hass.data[DOMAIN][self._device_id]:
-					self._attributes[attr] = self.hass.data[DOMAIN][self._device_id][attr]
-		
-		# Write state ngay lập tức và đợi xong (không schedule)
-		try:
-			self.async_write_ha_state()
-		except Exception:
-			pass  # ignore errors during startup
+    async def async_update(self) -> None:
+        """Update the sensor."""
+        # State is updated via the player
+        self.async_write_ha_state()
