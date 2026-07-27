@@ -1,14 +1,39 @@
+export interface Song {
 
-export interface CardConfig{
+    id: string;
 
-    entity:string;
+    title: string;
 
-    title?:string;
+    artist: string;
 
-    artwork?:boolean;
+    thumbnail: string;
 
-    lyrics?:boolean;
+    duration: number;
 
-    search?:boolean;
+}
+
+export interface Playlist {
+
+    id: string;
+
+    title: string;
+
+    songs: Song[];
+
+}
+
+export interface CardConfig {
+
+    entity: string;
+
+    title?: string;
+
+    artwork?: boolean;
+
+    lyrics?: boolean;
+
+    search?: boolean;
+
+    playlist?: boolean;
 
 }
