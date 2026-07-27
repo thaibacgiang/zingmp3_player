@@ -1,104 +1,116 @@
-"""Platform cho select integration của Zing MP3."""
+"""Select entities for Zing MP3 Player integration."""
+
+from __future__ import annotations
+
 import logging
+from typing import Any
+
 from homeassistant.components.select import SelectEntity
-from . import DOMAIN
-from .const import *
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+from .const import DOMAIN
+from .media_player import ZingMP3PlayerEntity
 
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_setup_entry(hass, config, async_add_entities):
-	"""Set up select entities từ config entry."""
-	_LOGGER.debug("Init Zing MP3 dropdowns")
-	init_dropdowns = config.data.get(CONF_INIT_DROPDOWNS, DEFAULT_INIT_DROPDOWNS)
-	select_entities = {
-		"speakers": ZingMp3SpeakerSelect(hass, config),
-	}
-	entities = []
-	for dropdown, entity in select_entities.items():
-		if dropdown in init_dropdowns:
-			entities.append(entity)
-	async_add_entities(entities, update_before_add=True)
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up Zing MP3 Player select entities from a config entry."""
+    dropdowns = entry.data.get("dropdowns", [])
+    if not dropdowns:
+        return
+        
+    # Find the media player entity
+    for entity in hass.data[DOMAIN].values():
+        if isinstance(entity, ZingMP3PlayerEntity):
+            entities = []
+            if "speakers" in dropdowns:
+                entities.append(ZingMP3SpeakerSelect(entity))
+            if "playmode" in dropdowns:
+                entities.append(ZingMP3PlayModeSelect(entity))
+            if "repeatmode" in dropdowns:
+                entities.append(ZingMP3RepeatModeSelect(entity))
+            async_add_entities(entities)
+            break
 
 
-class ZingMp3SelectEntity(SelectEntity):
-	"""Base class cho Zing MP3 select entities."""
+class ZingMP3SpeakerSelect(SelectEntity):
+    """Select entity for speakers."""
 
-	def __init__(self, hass, config):
-		"""Initialize select entity."""
-		self.hass = hass
-		self._device_id = config.entry_id
-		self._device_name = config.data.get(CONF_NAME)
-		self._attr_has_entity_name = True
+    def __init__(self, player: ZingMP3PlayerEntity) -> None:
+        """Initialize the select."""
+        self._player = player
+        self._attr_name = f"{player.name} Speaker"
+        self._attr_unique_id = f"{player.unique_id}_speakers"
+        self._attr_icon = "mdi:speaker"
 
-	@property
-	def device_info(self):
-		"""Return device info."""
-		return {
-			'identifiers': {(DOMAIN, self._device_id)},
-			'name': self._device_name,
-			'manufacturer': "smarthomeblack",
-			'model': "Zing MP3 Player"
-		}
+    @property
+    def current_option(self) -> str | None:
+        """Return the current selected speaker."""
+        return self._player.source
 
-	@property
-	def should_poll(self):
-		"""Return False vì không cần polling."""
-		return False
+    @property
+    def options(self) -> list[str]:
+        """Return the list of available speakers."""
+        return self._player.source_list
+
+    async def async_select_option(self, option: str) -> None:
+        """Select a speaker."""
+        await self._player.async_select_source(option)
+        self.async_write_ha_state()
 
 
-class ZingMp3SpeakerSelect(ZingMp3SelectEntity):
-	"""Select entity cho chọn speaker/output player."""
+class ZingMP3PlayModeSelect(SelectEntity):
+    """Select entity for play mode."""
 
-	def __init__(self, hass, config):
-		"""Initialize speaker select."""
-		super().__init__(hass, config)
-		self._attr_unique_id = config.entry_id + "_speakers"
-		self._attr_name = "Speakers"
-		self._attr_icon = 'mdi:speaker'
-		self._attr_current_option = None
-		self._options = []
-		self.hass.data[DOMAIN][self._device_id]['select_speakers'] = self
-		self._update_options()
+    def __init__(self, player: ZingMP3PlayerEntity) -> None:
+        """Initialize the select."""
+        self._player = player
+        self._attr_name = f"{player.name} Play Mode"
+        self._attr_unique_id = f"{player.unique_id}_playmode"
+        self._attr_icon = "mdi:play-speed"
+        self._attr_options = ["Normal", "Shuffle"]
 
-	def _update_options(self):
-		"""Update danh sách speakers có sẵn."""
-		from homeassistant.components.media_player import DOMAIN as DOMAIN_MP
-		self._options = []
-		for state in self.hass.states.async_all(DOMAIN_MP):
-			if state.entity_id != f"{DOMAIN_MP}.{DOMAIN}_{self._device_name}":
-				friendly_name = state.attributes.get('friendly_name', state.entity_id)
-				self._options.append(friendly_name)
-		if not self._options:
-			self._options = ["No speakers available"]
+    @property
+    def current_option(self) -> str | None:
+        """Return the current play mode."""
+        return "Shuffle" if self._player.shuffle else "Normal"
 
-	@property
-	def options(self):
-		"""Return list of options."""
-		return self._options
+    async def async_select_option(self, option: str) -> None:
+        """Select play mode."""
+        await self._player.async_set_shuffle(option == "Shuffle")
+        self.async_write_ha_state()
 
-	async def async_select_option(self, option):
-		"""Select option."""
-		from homeassistant.components.media_player import DOMAIN as DOMAIN_MP
-		# Tìm entity_id từ friendly_name
-		for state in self.hass.states.async_all(DOMAIN_MP):
-			if state.attributes.get('friendly_name') == option:
-				media_player_entity = self.hass.data[DOMAIN][self._device_id].get("media_player")
-				if media_player_entity:
-					await media_player_entity.async_select_source(state.entity_id.replace(f"{DOMAIN_MP}.", ""))
-				break
-		self._attr_current_option = option
-		self.async_schedule_update_ha_state()
 
-	async def async_update(self):
-		"""Update current option từ media player."""
-		media_player_entity = self.hass.data[DOMAIN][self._device_id].get("media_player")
-		if media_player_entity and hasattr(media_player_entity, '_remote_player'):
-			if media_player_entity._remote_player:
-				from homeassistant.components.media_player import DOMAIN as DOMAIN_MP
-				state = self.hass.states.get(media_player_entity._remote_player)
-				if state:
-					friendly_name = state.attributes.get('friendly_name', media_player_entity._remote_player)
-					if friendly_name in self._options:
-						self._attr_current_option = friendly_name
-		self._update_options()
+class ZingMP3RepeatModeSelect(SelectEntity):
+    """Select entity for repeat mode."""
+
+    def __init__(self, player: ZingMP3PlayerEntity) -> None:
+        """Initialize the select."""
+        self._player = player
+        self._attr_name = f"{player.name} Repeat Mode"
+        self._attr_unique_id = f"{player.unique_id}_repeatmode"
+        self._attr_icon = "mdi:repeat"
+        self._attr_options = ["Off", "One", "All"]
+
+    @property
+    def current_option(self) -> str | None:
+        """Return the current repeat mode."""
+        return self._player.repeat.value.capitalize()
+
+    async def async_select_option(self, option: str) -> None:
+        """Select repeat mode."""
+        from homeassistant.components.media_player import RepeatMode
+        mode_map = {
+            "Off": RepeatMode.OFF,
+            "One": RepeatMode.ONE,
+            "All": RepeatMode.ALL,
+        }
+        await self._player.async_set_repeat(mode_map[option])
+        self.async_write_ha_state()
