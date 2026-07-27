@@ -1,22 +1,59 @@
+export function formatTime(sec: number): string {
 
-export const callPlayerService=(
+    if (!sec || sec < 0) return "0:00";
 
-    hass:any,
+    const m = Math.floor(sec / 60);
 
-    service:string,
+    const s = Math.floor(sec % 60);
 
-    data:any
+    return `${m}:${String(s).padStart(2, "0")}`;
 
-)=>{
+}
 
-    return hass.callService(
+export function clamp(value: number, min: number, max: number): number {
 
-        "zingmp3_player",
+    return Math.min(Math.max(value, min), max);
 
-        service,
+}
 
-        data
+export function debounce<T extends (...args: any[]) => void>(
+    fn: T,
+    delay = 300
+): T {
 
-    );
+    let timer: number;
 
-};
+    return ((...args: any[]) => {
+
+        clearTimeout(timer);
+
+        timer = window.setTimeout(() => {
+
+            fn(...args);
+
+        }, delay);
+
+    }) as T;
+
+}
+
+export function throttle<T extends (...args: any[]) => void>(
+    fn: T,
+    limit = 100
+): T {
+
+    let waiting = false;
+
+    return ((...args: any[]) => {
+
+        if (waiting) return;
+
+        fn(...args);
+
+        waiting = true;
+
+        setTimeout(() => waiting = false, limit);
+
+    }) as T;
+
+}
