@@ -1,49 +1,57 @@
-"""Provide the initial setup."""
+"""Zing MP3 Player integration for Home Assistant."""
+
+from __future__ import annotations
+
 import logging
-import voluptuous as vol
-from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers.service import async_extract_entity_ids
-from .const import *
+from typing import Any
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
+
+from .const import DOMAIN
+from .utils import ZingMP3API
 
 _LOGGER = logging.getLogger(__name__)
 
-CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+PLATFORMS: list[Platform] = [
+    Platform.MEDIA_PLAYER,
+    Platform.SENSOR,
+    Platform.SELECT,
+]
 
 
-async def async_setup(hass, config):
-	"""Provide Setup of platform."""
-	return True
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up Zing MP3 Player from a config entry."""
+    hass.data.setdefault(DOMAIN, {})
+    
+    # Create API instance
+    api = ZingMP3API(hass)
+    
+    # Store API instance
+    hass.data[DOMAIN]["api"] = api
+    
+    # Set up platforms
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    
+    return True
 
 
-async def async_setup_entry(hass, config_entry):
-	"""Set up this integration using UI/YAML."""
-	hass.data.setdefault(DOMAIN, {})
-	hass.data[DOMAIN][config_entry.entry_id] = {}
-	hass.config_entries.async_update_entry(config_entry, data=ensure_config(config_entry.data))
-
-	if not config_entry.update_listeners:
-		config_entry.add_update_listener(async_update_options)
-
-	# Add entities to HA
-	await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
-	return True
-
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Unload a config entry."""
+    if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        # Clean up
+        if DOMAIN in hass.data:
+            api = hass.data[DOMAIN].get("api")
+            if api:
+                await api.close()
+            hass.data.pop(DOMAIN)
+    
+    return unload_ok
 
 
-async def async_remove_entry(hass, config_entry):
-	"""Handle removal of an entry."""
-	for platform in PLATFORMS:
-		try:
-			await hass.config_entries.async_forward_entry_unload(config_entry, platform)
-			_LOGGER.info(
-				"Successfully removed entities from the Zing MP3 integration"
-			)
-		except ValueError:
-			pass
-
-
-async def async_update_options(hass, config_entry):
-	_LOGGER.debug("Config updated, reload the Zing MP3 entities.")
-	for platform in PLATFORMS:
-		await hass.config_entries.async_forward_entry_unload(config_entry, platform)
-	await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
+async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload config entry."""
+    await async_unload_entry(hass, entry)
+    await async_setup_entry(hass, entry)
