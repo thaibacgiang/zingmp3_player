@@ -1,45 +1,59 @@
-# Services cho Zing MP3 integration
-call_method:
-  fields:
-    entity_id:
-      example: "media_player.zingmp3_player"
-      required: true
-      selector:
-        entity:
-          domain: media_player
-    command:
-      example: "goto_track"
-      required: true
-      selector:
-        text:
-    parameters:
-      example: "1"
-      required: true
-      selector:
-        text:
-
 search:
+  name: Search
+  description: Search for music on Zing MP3.
+  target:
+    entity:
+      integration: zingmp3_player
+      domain: media_player
   fields:
-    entity_id:
-      example: "media_player.zingmp3_player"
-      required: true
-      selector:
-        entity:
-          domain: media_player
     query:
-      example: "Sơn Tùng MTP"
+      name: Query
+      description: Search query string.
       required: true
+      example: "Sơn Tùng M-TP"
       selector:
         text:
     filter:
+      name: Filter
+      description: Type of content to search for.
       required: false
+      default: "songs"
       selector:
-        text:
+        select:
+          options:
+            - "songs"
+            - "playlists"
     limit:
+      name: Limit
+      description: Maximum number of results.
       required: false
-      example: "20"
       default: 20
       selector:
         number:
           min: 1
-          max: 1000
+          max: 50
+          step: 1
+          mode: slider
+
+call_method:
+  name: Call Method
+  description: Call a custom method on the media player.
+  target:
+    entity:
+      integration: zingmp3_player
+      domain: media_player
+  fields:
+    command:
+      name: Command
+      description: The command to execute.
+      required: true
+      example: "goto_track"
+      selector:
+        text:
+    parameters:
+      name: Parameters
+      description: Parameters for the command.
+      required: false
+      example: '{"track_no": 5}'
+      selector:
+        object:
